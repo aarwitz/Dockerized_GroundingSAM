@@ -324,17 +324,18 @@ def create_output_directory(output_path: Path) -> None:
 
 def overlay(old_path: Path,new_path: Path, mask: np.ndarray, count: int):
     print('mask.ndim: ', mask.ndim)
+    print(type(mask))
     if mask.ndim < 3:
         print('No detections to overlay.')
         return
     elif len(mask) > 1:
-        # Initialize an empty mask with the same shape as the first mask
-        combined_mask = np.zeros_like(mask[0], dtype=np.uint8)
+        # Stack the masks along a new dimension (axis 0)
+        stacked_masks = np.stack(mask, axis=0)
 
-        # Combine masks using logical OR
-        for single_mask in mask:
-            combined_mask = np.logical_or(combined_mask, single_mask).astype(np.uint8)
-        mask = combined_mask
+        # Combine masks using logical OR along the new dimension
+        combined_mask = np.logical_or.reduce(stacked_masks).astype(np.uint8)
+        mask = combined_mask  # Use the combined mask as the final mask
+    
     mask = np.squeeze(mask).astype(np.uint8)
     print(mask.shape)
 
@@ -466,30 +467,3 @@ if __name__ == '__main__':
     #      input_folder = output_path / "labels_imagenet_original",
     #      output_folder = output_path / "labels_imagenet"
     # )
-
-
-"""
-python Overlay2.py \
-    --image_path '/workspace/example_images' \
-    --output_path '/workspace/example_images_labeled' \
-    --confidence_score 0.4 \
-    --prompt 'box,package' \
-    --background_path '/workspace/otcempty1.bmp'
-"""
-
-
-"""
-python Overlay2.py \
-    --image_path '/workspace/Packages2Overlay' \
-    --output_path '/workspace/Packages2Overlay_labeled' \
-    --confidence_score 0.3 \
-    --prompt 'parcel,package,clothing bag,jeans,bag,box,envelope,plastic,white square' \
-    --background_path '/workspace/otcempty1.bmp' \
-    --maxmin_area 2531850 70000 \
-    --max_iou 0.01
-"""
-
-
-"""
-docker cp 7bc006d57ff7:/workspace/synthetic_overlays ~/Downloads/
-"""
