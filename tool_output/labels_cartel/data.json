@@ -1,0 +1,11 @@
+{
+    "categories": {
+        "0": {}
+    },
+    "samples": {
+        "0": {
+            "bboxes": [],
+            "image_id": "test.png"
+        }
+    }
+}

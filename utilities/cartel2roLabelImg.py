@@ -24,9 +24,6 @@ def get_image_size(image_path: Path):
         width, height = image.size
         return str(width), str(height)
 
-
-
-
 def create_object_element(annotation: ET.Element, bbox: dict) -> None:
     object_elem = ET.SubElement(annotation, 'object')
     type_elem = ET.SubElement(object_elem, 'type')
@@ -56,8 +53,6 @@ def create_imagenet_xml(pseudolabel_output_path: Path) -> ET.Element:
     with open(str(pseudolabel_output_path / 'labels_cartel' / 'data.json'),'r') as cartel_json:
         data = json.load(cartel_json)
 
-
-   
     for sample in tqdm(data["samples"]):
         annotation = ET.Element('annotation')
         annotation.set('verified', 'yes')

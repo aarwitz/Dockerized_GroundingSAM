@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 
 
+
 def min_in_image_area_rect(contour, image_size):
     """
     Like cv2.minAreaRect(), but only considers area within the image region when deciding which rectangle is smaller

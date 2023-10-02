@@ -62,13 +62,13 @@ RUN wget -q https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth
 WORKDIR /workspace/example_images
 ADD example_images /workspace/example_images/
 WORKDIR /workspace/
-ADD otcempty1.bmp /workspace/
-
-# Create a directory to store synthetic images in
-RUN mkdir synthetic_overlays
+ADD empty_conveyor.bmp /workspace/
 
 # Cleanup
 RUN apt-get clean && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
 # Copy source to workspace
-ADD Overlay2.py Pseudolabel_Demo.py cartel2roLabelImg.py padimg4labeling.py min_in_image_area_rect.py /workspace/
+# COPY /home/aaron/Dockerized_GroundingSAM/utilities/cartel2roLabelImg.py /workspace/
+ADD /utilities /workspace/utilities/
+ADD /gradio_demo /workspace/gradio_demo/
+ADD label_app.py /workspace/

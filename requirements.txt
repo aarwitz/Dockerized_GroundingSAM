@@ -10,3 +10,4 @@ supervision==0.4.0
 pycocotools
 pathlib
 setuptools
+gradio
