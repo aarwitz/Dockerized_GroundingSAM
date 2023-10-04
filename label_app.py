@@ -38,7 +38,7 @@ import utilities.cartel2roLabelImg as cartel2roLabelImg
 from utilities.padimg4labeling import add_padding_to_images
 from utilities.file_mgmt import suppress_stdout, empty_directory_and_subdirectories
 from utilities.filters import *
-
+from utilities.visualize_mask import visualize_mask
 # Create empty json to store labels in
 cartel_json = {
 "categories": {
@@ -47,28 +47,43 @@ cartel_json = {
 "samples": {}
 }
 
+def load_models():
+    # declare global variables
+    global grounding_dino_model
+    global sam_predictor
+    # GroundingDINO model and config
+    config_path = r"/workspace/GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py"
+    weights_path = r"/workspace/GroundingDINO/weights/groundingdino_swint_ogc.pth"
+    grounding_dino_model = Model(model_config_path=config_path, model_checkpoint_path=weights_path)
+    # Sam model and config
+    SAM_ENCODER_VERSION = "vit_h"
+    DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    sam_weights_path = r"/workspace/weights/sam_vit_h_4b8939.pth"
+    sam = sam_model_registry[SAM_ENCODER_VERSION](checkpoint=sam_weights_path).to(device=DEVICE)
+    sam_predictor = SamPredictor(sam)
+
+def set_search_params(prompt: str, confidence_score: float):
+    global CLASSES
+    global BOX_TRESHOLD
+    global TEXT_TRESHOLD
+    prompt = prompt.split(',')
+    CLASSES = [item.strip() for item in prompt]
+    BOX_TRESHOLD = confidence_score
+    TEXT_TRESHOLD = confidence_score
+    print('in set search paramers, CLASSES:', CLASSES)
+
 def dino_detect(
-        image: np.ndarray, 
-        confidence_score: float, 
-        prompt: list,
+        image: np.ndarray,
         roi: tuple,
         minmax_area: tuple,
         max_iou: float
         ) -> np.ndarray:
-    # Define model config and weights
-    config_path = r"/workspace/GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py"
-    weights_path = r"/workspace/GroundingDINO/weights/groundingdino_swint_ogc.pth"
-    # Define classes and thresholds
-    CLASSES = prompt
-    CLASSES_EXCLUDED_IDX = []    # can insert a negative prompt here
-    BOX_TRESHOLD = confidence_score
-    TEXT_TRESHOLD = confidence_score
-    # Create instance of model, pass in images with prompt and thresholds
+    # pass in images with prompt and thresholds
+    print('tuple(Classes)',tuple(CLASSES))
     with suppress_stdout():   # suppress prints from GroundingDINO module
-        grounding_dino_model = Model(model_config_path=config_path, model_checkpoint_path=weights_path)
         detections = grounding_dino_model.predict_with_classes(
             image=image,
-            classes=CLASSES,
+            classes=tuple(CLASSES),
             box_threshold=BOX_TRESHOLD,
             text_threshold=TEXT_TRESHOLD
         )
@@ -77,7 +92,8 @@ def dino_detect(
     # class_ids of these detections, in same order as bboxes
     class_ids = detections.class_id
     # Create a boolean mask based on the target class IDs
-    detections_mask = np.logical_not(np.isin(class_ids, CLASSES_EXCLUDED_IDX))
+    CLASSES_EXCLUDED_IDX = []
+    detections_mask = np.logical_not(np.isin(class_ids, CLASSES_EXCLUDED_IDX))  # to implement negative prompts
     print('\n-----------------------------------------------------------------\n')
     count = 0
     for class_id in class_ids:
@@ -122,14 +138,9 @@ def segment(sam_predictor: SamPredictor, image: np.ndarray, xyxy: np.ndarray) ->
     return np.array(result_masks)
  
 def run_SAM(image: np.ndarray, bbox: np.ndarray) -> np.ndarray:
-    SAM_ENCODER_VERSION = "vit_h"
-    DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    sam_weights_path = r"/workspace/weights/sam_vit_h_4b8939.pth"
-    sam = sam_model_registry[SAM_ENCODER_VERSION](checkpoint=sam_weights_path).to(device=DEVICE)
-    sam_predictor = SamPredictor(sam)
     mask = segment(
     sam_predictor=sam_predictor,
-    image=cv2.cvtColor(image, cv2.COLOR_BGR2RGB),
+    image=image,
     xyxy=bbox
     )
     return mask
@@ -166,7 +177,6 @@ def rotate_bbox(image: np.ndarray, masks: np.ndarray, image_fname: str, output_p
         box = np.intp(cv2.boxPoints(rotrect))
         # Draw the rotated rectangle on the original image
         cv2.drawContours(image, [box], 0, (0,0,255), 4)
-        # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)    # Uncomment this line if you input BGR images
         box_info_4json += [get_rotated_bounding_box_info(box)]
     cv2.imwrite(str(output_path / "labels_visualized" / image_fname), image)
     print('Visualizing rotated bounding box label in: /Dockerized_GroundingSAM/tool_output/labels_visualized/'+ image_fname)
@@ -250,23 +260,30 @@ def copy_xml(source_dir, destination_dir) -> None:
             print(f"Copied: {file} to {destination_dir}")
     print("All .xml files have been copied.")
 
-def main(image_path: Path = Path('/workspace/example_images'), 
-         output_path: Path = Path('/workspace/tool_output'), 
-         confidence_score: float = 0.3,
-         prompt: str = "item on conveyor",
-         background_path: Path = "none",
-         roi: tuple = (0, 0, 10e10, 10e10),
-         minmax_area: tuple = (0, 10e10),
-         max_iou: float = 0.5) -> None:
+def main(
+    image_path: Path = Path('/workspace/example_images'), 
+    output_path: Path = Path('/workspace/tool_output'), 
+    confidence_score: float = 0.2,
+    prompt: str = "package on conveyor",
+    background_path: Path = "none",
+    roi: tuple = (0, 0, 10e10, 10e10),
+    minmax_area: tuple = (0, 10e10),
+    max_iou: float = 0.5
+    ) -> None:
+    set_search_params(prompt,confidence_score)
+    print('prompt',prompt)
+    print('CLASSES',CLASSES)
     # create output directory structure
     create_output_directory(output_path=output_path)
+    # load models
+    # load_models(prompt=prompt, confidence_score=confidence_score)
     # Define ROI using first image in dataset
     count = 0
     for image_fname in os.listdir(image_path):
         # Load image
         image = cv2.imread(str(image_path / image_fname))
         # Detect with GroundingDINO
-        bboxes = dino_detect(image, confidence_score, prompt, roi, minmax_area, max_iou)
+        bboxes = dino_detect(image, roi, minmax_area, max_iou)
         # Pass detection to SAM
         masks = run_SAM(image,bboxes)
         # Rotate bboxes using masks and write annotation to image and save
@@ -275,6 +292,10 @@ def main(image_path: Path = Path('/workspace/example_images'),
         add_dino_pseudolabel_to_json(box_info, count, image_fname)
         # Combine masked items into one mask
         mask = stack_masks(masks,image.shape,image_fname)
+        # Visualize rotated bbox and labels
+        print('everything is fine...')
+        if len(masks) > 0:
+            visualize_mask(output_path / "labels_visualized", image_fname)
         # Ovelay masked objects onto background
         if str(background_path) != "none":
             print(str(background_path))
@@ -285,16 +306,15 @@ def main(image_path: Path = Path('/workspace/example_images'),
     with open(cartel_json_output_path, 'w') as file:
         json.dump(cartel_json, file, indent=4)
     print(f"Cartel data saved to {cartel_json_output_path} as JSON.")
- 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Input image pa")
-   
+
+def parse_args():
+    parser = argparse.ArgumentParser()
     # Define command-line arguments
-    parser.add_argument('--image_path', type=str, required=True,
+    parser.add_argument('--image_path', type=str, required=False,
                         help="Path in docker container to the folder containing images.")
-    parser.add_argument('--confidence_score', type=float, required=True,
+    parser.add_argument('--confidence_score', type=float, required=False,
                         help="Confidence threshold for GroundingDINO detections.")
-    parser.add_argument('--prompt', type=str, required=True,
+    parser.add_argument('--prompt', type=str, required=False,
                         help="Prompt for GroundingDINO detections.")    
     parser.add_argument('--background_path', type=str, required=False, default = "none",
                         help="Path to a single background image to overlay masks onto.")
@@ -305,24 +325,32 @@ if __name__ == '__main__':
     parser.add_argument('--max_iou', type=float, required=False, default = 0.5,
                         help="IOU threshold for detections")
     args = parser.parse_args()
+    return args
+ 
+if __name__ == '__main__':
+    args = parse_args()
     tool_output = Path('/workspace/tool_output')
-    main (
-        image_path = Path(args.image_path),
-        output_path = tool_output,
-        confidence_score = args.confidence_score,
-        prompt = args.prompt.split(','),
-        background_path = Path(args.background_path),
-        roi = tuple(args.roi),
-        minmax_area = tuple(args.minmax_area),
-        max_iou = args.max_iou
-    )
+    if args.image_path is None:
+        load_models()  # If no arguments are provided, just load models
+    else:
+        load_models()
+        main (
+            image_path = Path(args.image_path),
+            output_path = tool_output,
+            confidence_score = args.confidence_score,
+            prompt = args.prompt,
+            background_path = Path(args.background_path),
+            roi = tuple(args.roi),
+            minmax_area = tuple(args.minmax_area),
+            max_iou = args.max_iou
+        )
 
-    # Store the labels in both imagenet .xml and cartel .json
-    cartel2roLabelImg.main(
-        pseudolabel_output_path = tool_output
-    )
-    # shutil.rmtree(Path(args.output_path) / "labels_cartel") # comment out to keep cartel labels
-    copy_xml(Path(args.output_path)/"labels_imagenet", '/workspace/synthetic_overlays/')
+        # Store the labels in both imagenet .xml and cartel .json
+        cartel2roLabelImg.main(
+            pseudolabel_output_path = tool_output
+        )
+        # Copy labels to synthetic path
+        copy_xml(tool_output / "labels_imagenet", '/workspace/synthetic_overlays/')
     #     Pad images with 200px of black on each side, to allow for out-of-bounds labeling
     # ### Leave as optional
     # add_padding_to_images(

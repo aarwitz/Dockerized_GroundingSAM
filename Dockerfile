@@ -72,3 +72,11 @@ RUN apt-get clean && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 ADD /utilities /workspace/utilities/
 ADD /gradio_demo /workspace/gradio_demo/
 ADD label_app.py /workspace/
+
+# Load models
+# ENTRYPOINT ["/bin/bash","-c","python label_app.py"]
+# CMD ["tail", "-f", "/dev/null"]
+# ENTRYPOINT [["/bin/bash"]]
+# CMD ["sh", "-c", "python label_app.py"]
+
+# RUN python label_app.py

@@ -4,7 +4,16 @@
     },
     "samples": {
         "0": {
-            "bboxes": [],
+            "bboxes": [
+                {
+                    "angle": "-0.2563418103911549",
+                    "category_id": "0",
+                    "center_x": "299.75",
+                    "center_y": "245.25",
+                    "height": "453.35747484738795",
+                    "width": "362.8567210346255"
+                }
+            ],
             "image_id": "test.png"
         }
     }
