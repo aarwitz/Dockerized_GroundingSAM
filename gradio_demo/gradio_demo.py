@@ -1,5 +1,3 @@
-
-
 import numpy as np
 import gradio as gr
 from pathlib import Path
@@ -9,22 +7,26 @@ import os
 
 outer_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.append(outer_dir)
-
-from label_app import main, load_models
+from demo import main, load_models
+from utilities.file_mgmt import create_timestamped_dir, img_timestamped_fname
 
 load_models() # load models before starting demo
 
-def run_app(input_img,language_prompt, confidence_score = 0.5):
+def run_app(input_img,language_prompt, confidence_score = 0.5,max_iou = 0.5):
     prompt = language_prompt.lower()
-    img_path = Path('/workspace/gradio_demo/uploaded_images')
-    cv2.imwrite(str(img_path / 'test.png'),input_img)
-    main (
+    img_path = create_timestamped_dir(base_path=Path("/workspace/gradio_demo/uploaded_images"))
+    img_name = img_timestamped_fname()
+    cv2.imwrite(str(img_path / img_name),input_img)
+    output_path = main (
         image_path = img_path,
         prompt=prompt,
-        confidence_score=confidence_score
+        confidence_score=confidence_score,
+        max_iou=max_iou
     )
-    labeled_img_path = Path('/workspace/tool_output/labels_visualized')
-    labeled_img = cv2.imread(str(labeled_img_path / 'test.png'))
+    if output_path is None:
+        return input_img
+    labeled_img_path = output_path / 'labels_visualized'
+    labeled_img = cv2.imread(str(labeled_img_path / img_name))
     img_rgb = cv2.cvtColor(labeled_img, cv2.COLOR_BGR2RGB)
     return labeled_img
 
@@ -33,8 +35,9 @@ demo = gr.Interface(
     inputs = [
         gr.Image(label="Input Image"), 
         gr.Text(label="Language Prompt",description = "Enter a description of objects to detect", placeholder = "box, shipping label, tote"),
-        gr.Slider(minimum=0,maximum=1.0,label="Confidence Score",description="Enter a confidence score in range: 0-1)",placeholder=0.6)
+        gr.Slider(minimum=0,maximum=1.0,label="Confidence Score",description="Enter a confidence score in range: 0-1)",placeholder=0.6),
+        gr.Slider(minimum=0,maximum=1.0,label="IOU Threshold",description="Enter a maximum IOU that is accepted for overlapping detections")
         ],
     outputs = "image")
+demo.queue()
 demo.launch(share=True)
-# demo.launch()

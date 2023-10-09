@@ -2,12 +2,11 @@ import cv2
 import numpy as np
 import os
 
-def visualize_mask(original_image_path, image_fname ):
+def visualize_mask(original_image_path, image_fname, mask ):
 
     # Load your mask (assuming it's a single-channel image, e.g., grayscale)
-    mask = cv2.imread(f'/workspace/tool_output/masks/{image_fname}', cv2.IMREAD_GRAYSCALE)
+    # mask = cv2.imread(str(output_path/'masks'/image_fname), cv2.IMREAD_GRAYSCALE)
     original_image = cv2.imread(str(original_image_path/image_fname))
-
     # Ensure the mask has an alpha channel (transparency)
     mask_with_alpha = cv2.merge([mask, mask, mask, mask])
 
