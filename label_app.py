@@ -1,23 +1,4 @@
-"""
-Input a folder of images and a natural language prompt
-Output a folder with rotated bounding boxes around prompted items and a json storing position and class of bbox
- 
-Uses an adapted cv2.minAreaRect() to create rotated bounding boxes of objects beyond the image's edge
-    #           . P
-    #          /|\
-    #        /  | \
-    # -----/----.--\--------------------
-    # |  /      B   \                  |
-    # |  \           \ Q               |
-    # |   \         /                  |
-    # |    \      /                    |
-    # |     \   /                      |
-    # |      \/                        |
-    # |                                |
-    # |                                |
-    # ----------------------------------
- 
-"""
+
 import argparse
 from PIL import Image
 from pathlib import Path
