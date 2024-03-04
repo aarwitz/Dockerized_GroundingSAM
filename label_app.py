@@ -8,6 +8,7 @@ import cv2
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import os
+# from mmdet.apis import DetInferencer
 from typing import List, Tuple
 from groundingdino.util.inference import Model
 from segment_anything import sam_model_registry, SamPredictor
@@ -20,6 +21,7 @@ from utilities.padimg4labeling import add_padding_to_images
 from utilities.file_mgmt import suppress_stdout, empty_directory_and_subdirectories
 from utilities.filters import *
 from utilities.visualize_mask import visualize_mask
+from mmdet.apis import DetInferencer
 # Create empty json to store labels in
 cartel_json = {
 "categories": {
@@ -32,6 +34,7 @@ def load_models():
     # declare global variables
     global grounding_dino_model
     global sam_predictor
+    global mmdet_inferencer
     # GroundingDINO model and config
     config_path = r"/workspace/GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py"
     weights_path = r"/workspace/GroundingDINO/weights/groundingdino_swint_ogc.pth"
@@ -42,6 +45,10 @@ def load_models():
     sam_weights_path = r"/workspace/weights/sam_vit_h_4b8939.pth"
     sam = sam_model_registry[SAM_ENCODER_VERSION](checkpoint=sam_weights_path).to(device=DEVICE)
     sam_predictor = SamPredictor(sam)
+    # GroundingDINO finetuned blue marker model
+    config_path = r"workspace/mmdet/groundingdino/bluemarker_config.py"
+    weights_path = r"workspace/mmdet/groundingdno/bluemarker.pth"
+    mmdet_inferencer = DetInferencer(model=config_path, weights=weights_path)
 
 def set_search_params(prompt: str, confidence_score: float):
     global CLASSES
@@ -339,13 +346,13 @@ if __name__ == '__main__':
     #      output_folder = output_path / "labels_imagenet"
     # )
 
-"""
-python label_app.py \
---image_path '/workspace/example_images' \
---confidence_score 0.2 \
---prompt 'box,package,parcel,item on conveyor' \
---background_path '/workspace/empty_conveyor.bmp' \
---roi 100 0 2300 2048 \
---minmax_area 70000 2231850 \
---max_iou 0.3
-"""
+main(
+    image_path = Path('/workspace/example_images'), 
+    output_path = Path('/workspace/tool_output'), 
+    confidence_score = 0.2,
+    prompt = "package on conveyor",
+    background_path = "none",
+    roi = (0, 0, 10e10, 10e10),
+    minmax_area = (0, 10e10),
+    max_iou = 0.5
+)

@@ -11,4 +11,3 @@ pycocotools
 pathlib
 setuptools
 gradio
-mmdet

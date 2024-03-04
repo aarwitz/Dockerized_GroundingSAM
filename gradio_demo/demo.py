@@ -33,11 +33,13 @@ from utilities.filters import *
 from utilities.visualize_mask import visualize_mask
 from utilities.file_mgmt import create_timestamped_dir
 from utilities.filters import filter_bboxes_by_IOU
+from mmdet.apis import DetInferencer
 
 def load_models():
     # declare global variables
     global grounding_dino_model
     global sam_predictor
+    global mmdet_inferencer
     # GroundingDINO model and config
     config_path = r"/workspace/GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py"
     weights_path = r"/workspace/GroundingDINO/weights/groundingdino_swint_ogc.pth"
@@ -48,6 +50,10 @@ def load_models():
     sam_weights_path = r"/workspace/weights/sam_vit_h_4b8939.pth"
     sam = sam_model_registry[SAM_ENCODER_VERSION](checkpoint=sam_weights_path).to(device=DEVICE)
     sam_predictor = SamPredictor(sam)
+    # GroundingDINO finetuned blue marker model
+    config_path = r"workspace/mmdet/groundingdino/bluemarker_config.py"
+    weights_path = r"workspace/mmdet/groundingdno/bluemarker.pth"
+    mmdet_inferencer = DetInferencer(model=config_path, weights=weights_path)
 
 def set_search_params(prompt: str, confidence_score: float):
     global CLASSES
@@ -98,6 +104,21 @@ def dino_detect(image: np.ndarray, max_iou: float) -> np.ndarray:
     print('\nApply IOU filter:')
     print(ioufiltered_xyxy)
     return ioufiltered_xyxy
+
+
+def dino_blue_marker_detect(image: np.ndarray, max_iou: float) -> np.ndarray:
+    inferencer = DetInferencer(model='/home/aaron/mmdetection/configs/grounding_dino/grounding_dino_swin-t_finetune_8xb2_20e_cat.py', weights='/home/aaron/mmdetection/marker_work_dir/epoch_62.pth')
+    results_dict = inferencer(inputs='/home/aaron/mmdetection/demo/demo.jpg',texts='bench .',pred_score_thr=.3,out_dir='outputs')
+    # Assuming results_dict is your dictionary
+    predictions = results_dict['predictions'][0]
+    # Filter by score
+    filtered_bboxes_xyxy = []
+    while predictions['scores'][i] > max_iou:
+        filtered_bboxes_xyxy += [predictions['bboxes'][i]]
+        i+=1
+    #### Filter: Define IOU thresholds to filter out duplicate detections
+    ioufiltered_xyxy = filter_bboxes_by_IOU(filtered_bboxes_xyxy, max_iou)
+    return np.array(ioufiltered_xyxy)
 
 def segment(sam_predictor: SamPredictor, image: np.ndarray, xyxy: np.ndarray) -> np.ndarray:
     sam_predictor.set_image(image)
@@ -177,7 +198,8 @@ def main(
     output_path: Path = Path('/workspace/tool_output'),
     confidence_score: float = 0.2,
     prompt: str = "package on conveyor",
-    max_iou: float = 0.0
+    max_iou: float = 0.0,
+    model_selection: str = 'SwinT'
     ) -> Path:
     stamped_output_path = create_timestamped_dir(base_path=output_path)
     set_search_params(prompt,confidence_score)
@@ -187,7 +209,10 @@ def main(
         # Load image
         image = cv2.imread(str(image_path / image_fname))
         # Detect with GroundingDINO
-        bboxes = dino_detect(image, max_iou=max_iou)
+        if model_selection == 'SwinT':
+            bboxes = dino_detect(image, max_iou=max_iou)
+        else:
+            bboxe = dino_blue_marker_detect(image, max_iou=max_iou)
         if len(bboxes) < 1:
             return None
         # Pass detection to SAM

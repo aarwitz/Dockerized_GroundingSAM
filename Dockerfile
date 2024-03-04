@@ -39,6 +39,11 @@ RUN pip3 install torch torchvision torchaudio --index-url https://download.pytor
 WORKDIR /workspace
 ADD requirements.txt /workspace/
 RUN pip3 install -r /workspace/requirements.txt
+RUN pip install -U openmim
+RUN mim install mmengine
+RUN mim install "mmcv>=2.0.0"
+RUN mim install mmdet
+RUN mim download mmdet --config rtmdet_tiny_8xb32-300e_coco --dest .
 
 # Clone GroundingDINO repo and weights
 WORKDIR /workspace
